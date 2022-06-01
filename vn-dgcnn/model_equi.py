@@ -382,6 +382,7 @@ class EQCNN_partseg(nn.Module):
     def __init__(self, args, seg_num_all):
         super(EQCNN_partseg, self).__init__()
         self.args = args
+        self.seg_num_all = seg_num_all
         self.k = args.k
         
         self.bn7 = nn.BatchNorm1d(64)
@@ -418,7 +419,7 @@ class EQCNN_partseg(nn.Module):
         self.dp2 = nn.Dropout(p=0.5)
         self.conv10 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
                                    self.bn10)
-        self.conv11 = nn.Conv1d(128, num_part, kernel_size=1, bias=False)
+        self.conv11 = nn.Conv1d(128, self.seg_num_all, kernel_size=1, bias=False)
         
 
     def forward(self, x, l):
