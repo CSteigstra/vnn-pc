@@ -15,8 +15,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from data import ModelNet40
-from model import DGCNN_cls
+from data import ModelNet40, ModelNetDataLoader
+from model import DGCNN_cls, ACTIV_MAP, get_activ
 from model_equi import EQCNN_cls
 import numpy as np
 from torch.utils.data import DataLoader
@@ -39,10 +39,15 @@ def _init_():
     os.system('cp data.py results/cls' + '/' + args.exp_name + '/' + 'data.py.backup')
 
 def train(args, io):
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=8,
-                              batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
-                             batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    if args.normal:
+        train_loader = ModelNetDataLoader(root='data', npoint=args.num_points, split='train', normal_channel=args.normal)
+        test_loader = ModelNetDataLoader(root='data', npoint=args.num_points, split='test', normal_channel=args.normal)
+    else:
+        train_loader = ModelNet40(partition='train', num_points=args.num_points)
+        test_loader = ModelNet40(partition='test', num_points=args.num_points)
+    
+    train_loader = DataLoader(train_loader, num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(test_loader, num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -89,13 +94,20 @@ def train(args, io):
             
             data, label = data.to(device), label.to(device).squeeze()
             if trot is not None:
-                data = trot.transform_points(data)
+                data[:, :, :3] = trot.transform_points(data[:, :, :3])
+                if args.normal:
+                    data[:, :, 3:] = trot.transform_points(data[:, :, 3:])
+
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
             opt.zero_grad()
             logits = model(data)
             loss = criterion(logits, label)
             loss.backward()
+
+            if args.grad_clip:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+
             opt.step()
             preds = logits.max(dim=1)[1]
             count += batch_size
@@ -131,7 +143,9 @@ def train(args, io):
             
             data, label = data.to(device), label.to(device).squeeze()
             if trot is not None:
-                data = trot.transform_points(data)
+                data[:, :, :3] = trot.transform_points(data[:, :, :3])
+                if args.normal:
+                    data[:, :, 3:] = trot.transform_points(data[:, :, 3:])
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
             logits = model(data)
@@ -156,8 +170,13 @@ def train(args, io):
 
 
 def test(args, io):
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points),
-                             batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    if args.normal:
+        test_loader = DataLoader(ModelNetDataLoader(root='data', npoint=args.num_points, split='test', normal_channel=args.normal),
+                                 batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+
+    else:
+        test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points),
+                                batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -194,7 +213,9 @@ def test(args, io):
 
         data, label = data.to(device), label.to(device).squeeze()
         if trot is not None:
-            data = trot.transform_points(data)
+            data[:, :, :3] = trot.transform_points(data[:, :, :3])
+            if args.normal:
+                data[:, :, 3:] = trot.transform_points(data[:, :, 3:])
         data = data.permute(0, 2, 1)
         batch_size = data.size()[0]
         logits = model(data)
@@ -235,7 +256,7 @@ if __name__ == "__main__":
                         help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--eval', type=bool, default=False,
+    parser.add_argument('--eval', action='store_true',
                         help='evaluate the model')
     parser.add_argument('--num_points', type=int, default=1024,
                         help='num of points to use')
@@ -253,12 +274,20 @@ if __name__ == "__main__":
     parser.add_argument('--pooling', type=str, default='mean', metavar='N',
                         choices=['mean', 'max'],
                         help='VNN only: pooling method.')
+    parser.add_argument('--activ', type=str, default=None, help='Activation function [default: author LeakyReLU]',
+                        choices=ACTIV_MAP.keys())
+    parser.add_argument('--grad_clip', type=float, default=None, help='Gradient clipping [suggested: 1]')
+    parser.add_argument('--magnitude_activation', action='store_true', default=False, help='Whether to use authors magnitude activation [default: False]')
+    parser.add_argument('--normal', action='store_true', default=False, help='Whether to use normal information [default: False]')
     args = parser.parse_args()
 
     _init_()
 
     io = IOStream('results/cls/' + args.exp_name + '/run.log')
     io.cprint(str(args))
+
+    # Retrieve activation function from name.
+    args.activ = get_activ(args.activ, args.magnitude_activation)
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     torch.manual_seed(args.seed)
@@ -269,7 +298,7 @@ if __name__ == "__main__":
     else:
         io.cprint('Using CPU')
 
-    if not args.eval:
-        train(args, io)
-    else:
+    if args.eval:
         test(args, io)
+    else:
+        train(args, io)

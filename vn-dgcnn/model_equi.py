@@ -93,6 +93,91 @@ class VNLeakyReLU(nn.Module):
         return x_out
 
 
+class VNgetLinearActiv(nn.Module):
+    def __init__(self, in_channels, out_channels, dim=5, share_nonlinearity=False, negative_slope=0.2, fun=None):
+        super(VNgetLinearActiv, self).__init__()
+        if fun.author:
+            self.instance = VNLinearLeakyReLU(in_channels, out_channels, dim, share_nonlinearity, negative_slope)
+        elif fun.mag:
+            self.instance = VNLinearActivMag(fun, in_channels, out_channels, dim, share_nonlinearity)
+        else:
+            self.instance = VNLinearActiv(fun, in_channels, out_channels, dim, share_nonlinearity)
+
+    def forward(self, x):
+        return self.instance.forward(x)
+
+
+class VNLinearActiv(nn.Module):
+    def __init__(self, fun, in_channels, out_channels, dim=5, share_nonlinearity=False):
+        super(VNLinearActiv, self).__init__()
+        self.activ = fun
+        self.dim = dim
+
+        self.map_to_feat = nn.Linear(in_channels, out_channels, bias=False)
+        self.batchnorm = VNBatchNorm(out_channels, dim=dim)
+        
+        if share_nonlinearity:
+            self.map_to_dir = nn.Linear(in_channels, 1, bias=False)
+        else:
+            self.map_to_dir = nn.Linear(in_channels, out_channels, bias=False)
+    
+    def forward(self, x):
+        '''
+        x: point features of shape [B, N_feat, 3, N_samples, ...]
+        '''
+        # Linear
+        q = self.map_to_feat(x.transpose(1,-1)).transpose(1,-1)
+
+        # BatchNorm
+        q = self.batchnorm(q)
+
+        # Activation
+        k = self.map_to_dir(x.transpose(1,-1)).transpose(1,-1)
+        k = k / (torch.norm(k, dim=2, keepdim=True) + EPS)
+
+        in_q_d = (q * k).sum(2, keepdim=True)
+
+        x_out = self.activ(in_q_d) * k + (q - in_q_d * k)
+
+        return x_out
+
+
+class VNLinearActivMag(nn.Module):
+    def __init__(self, fun, in_channels, out_channels, dim=5, share_nonlinearity=False):
+        super(VNLinearActivMag, self).__init__()
+        self.activ = fun
+        self.dim = dim
+
+        self.map_to_feat = nn.Linear(in_channels, out_channels, bias=False)
+        self.batchnorm = VNBatchNorm(out_channels, dim=dim)
+        
+        if share_nonlinearity:
+            self.map_to_dir = nn.Linear(in_channels, 1, bias=False)
+        else:
+            self.map_to_dir = nn.Linear(in_channels, out_channels, bias=False)
+    
+    def forward(self, x):
+        '''
+        x: point features of shape [B, N_feat, 3, N_samples, ...]
+        '''
+        # Linear
+        q = self.map_to_feat(x.transpose(1,-1)).transpose(1,-1)
+
+        # BatchNorm
+        q = self.batchnorm(q)
+
+        # Activation
+        k = self.map_to_dir(x.transpose(1,-1)).transpose(1,-1)
+        k = k / (torch.norm(k, dim=2, keepdim=True) + EPS)
+
+        q_para = (q * k).sum(2, keepdim=True) * k
+        q_para_norm = torch.norm(q_para, dim=2, keepdim=True)
+
+        x_out = self.activ(q_para_norm) / q_para_norm * q_para + (q - q_para)
+
+        return x_out
+
+
 class VNLinearLeakyReLU(nn.Module):
     def __init__(self, in_channels, out_channels, dim=5, share_nonlinearity=False, negative_slope=0.2):
         super(VNLinearLeakyReLU, self).__init__()
@@ -169,13 +254,13 @@ def mean_pool(x, dim=-1, keepdim=False):
 
 
 class VNStdFeature(nn.Module):
-    def __init__(self, in_channels, dim=4, normalize_frame=False, share_nonlinearity=False, negative_slope=0.2):
+    def __init__(self, in_channels, dim=4, normalize_frame=False, share_nonlinearity=False, negative_slope=0.2, fun=None):
         super(VNStdFeature, self).__init__()
         self.dim = dim
         self.normalize_frame = normalize_frame
         
-        self.vn1 = VNLinearLeakyReLU(in_channels, in_channels//2, dim=dim, share_nonlinearity=share_nonlinearity, negative_slope=negative_slope)
-        self.vn2 = VNLinearLeakyReLU(in_channels//2, in_channels//4, dim=dim, share_nonlinearity=share_nonlinearity, negative_slope=negative_slope)
+        self.vn1 = VNgetLinearActiv(in_channels, in_channels//2, dim=dim, share_nonlinearity=share_nonlinearity, negative_slope=negative_slope, fun=fun)
+        self.vn2 = VNgetLinearActiv(in_channels//2, in_channels//4, dim=dim, share_nonlinearity=share_nonlinearity, negative_slope=negative_slope, fun=fun)
         if normalize_frame:
             self.vn_lin = nn.Linear(in_channels//4, 2, bias=False)
         else:
@@ -224,14 +309,14 @@ class EQCNN_cls(nn.Module):
         self.args = args
         self.k = args.k
         
-        self.conv1 = VNLinearLeakyReLU(2, 64//3)
-        self.conv2 = VNLinearLeakyReLU(64//3*2, 64//3)
-        self.conv3 = VNLinearLeakyReLU(64//3*2, 128//3)
-        self.conv4 = VNLinearLeakyReLU(128//3*2, 256//3)
+        self.conv1 = VNgetLinearActiv(2, 64//3, fun=args.activ)
+        self.conv2 = VNgetLinearActiv(64//3*2, 64//3, fun=args.activ)
+        self.conv3 = VNgetLinearActiv(64//3*2, 128//3, fun=args.activ)
+        self.conv4 = VNgetLinearActiv(128//3*2, 256//3, fun=args.activ)
 
-        self.conv5 = VNLinearLeakyReLU(256//3+128//3+64//3*2, 1024//3, dim=4, share_nonlinearity=True)
+        self.conv5 = VNgetLinearActiv(256//3+128//3+64//3*2, 1024//3, dim=4, share_nonlinearity=True, fun=args.activ)
         
-        self.std_feature = VNStdFeature(1024//3*2, dim=4, normalize_frame=False)
+        self.std_feature = VNStdFeature(1024//3*2, dim=4, normalize_frame=False, fun=args.activ)
         self.linear1 = nn.Linear((1024//3)*12, 512)
         
         self.bn1 = nn.BatchNorm1d(512)
@@ -284,9 +369,9 @@ class EQCNN_cls(nn.Module):
         x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)
         x = torch.cat((x1, x2), 1)
         
-        x = F.leaky_relu(self.bn1(self.linear1(x)), negative_slope=0.2)
+        x = self.args.activ(self.bn1(self.linear1(x)))
         x = self.dp1(x)
-        x = F.leaky_relu(self.bn2(self.linear2(x)), negative_slope=0.2)
+        x = self.args.activ(self.bn2(self.linear2(x)))
         x = self.dp2(x)
         x = self.linear3(x)
         
@@ -304,11 +389,11 @@ class EQCNN_partseg(nn.Module):
         self.bn9 = nn.BatchNorm1d(256)
         self.bn10 = nn.BatchNorm1d(128)
         
-        self.conv1 = VNLinearLeakyReLU(2, 64//3)
-        self.conv2 = VNLinearLeakyReLU(64//3, 64//3)
-        self.conv3 = VNLinearLeakyReLU(64//3*2, 64//3)
-        self.conv4 = VNLinearLeakyReLU(64//3, 64//3)
-        self.conv5 = VNLinearLeakyReLU(64//3*2, 64//3)
+        self.conv1 = VNgetLinearActiv(2, 64//3, fun=args.activ)
+        self.conv2 = VNgetLinearActiv(64//3, 64//3, fun=args.activ)
+        self.conv3 = VNgetLinearActiv(64//3*2, 64//3, fun=args.activ)
+        self.conv4 = VNgetLinearActiv(64//3, 64//3, fun=args.activ)
+        self.conv5 = VNgetLinearActiv(64//3*2, 64//3, fun=args.activ)
         
         if args.pooling == 'max':
             self.pool1 = VNMaxPool(64//3)
@@ -319,24 +404,20 @@ class EQCNN_partseg(nn.Module):
             self.pool2 = mean_pool
             self.pool3 = mean_pool
         
-        self.conv6 = VNLinearLeakyReLU(64//3*3, 1024//3, dim=4, share_nonlinearity=True)
-        self.std_feature = VNStdFeature(1024//3*2, dim=4, normalize_frame=False)
+        self.conv6 = VNgetLinearActiv(64//3*3, 1024//3, dim=4, share_nonlinearity=True, fun=args.activ)
+        self.std_feature = VNStdFeature(1024//3*2, dim=4, normalize_frame=False, fun=args.activ)
         self.conv8 = nn.Sequential(nn.Conv1d(2299, 256, kernel_size=1, bias=False),
-                               self.bn8,
-                               nn.LeakyReLU(negative_slope=0.2))
+                               self.bn8)
         
         self.conv7 = nn.Sequential(nn.Conv1d(16, 64, kernel_size=1, bias=False),
-                                   self.bn7,
-                                   nn.LeakyReLU(negative_slope=0.2))
+                                   self.bn7)
         
         self.dp1 = nn.Dropout(p=0.5)
         self.conv9 = nn.Sequential(nn.Conv1d(256, 256, kernel_size=1, bias=False),
-                                   self.bn9,
-                                   nn.LeakyReLU(negative_slope=0.2))
+                                   self.bn9)
         self.dp2 = nn.Dropout(p=0.5)
         self.conv10 = nn.Sequential(nn.Conv1d(256, 128, kernel_size=1, bias=False),
-                                   self.bn10,
-                                   nn.LeakyReLU(negative_slope=0.2))
+                                   self.bn10)
         self.conv11 = nn.Conv1d(128, num_part, kernel_size=1, bias=False)
         
 
@@ -378,11 +459,11 @@ class EQCNN_partseg(nn.Module):
 
         x = torch.cat((x, x123), dim=1)
 
-        x = self.conv8(x)
+        x = self.args.activ(self.conv8(x))
         x = self.dp1(x)
-        x = self.conv9(x)
+        x = self.args.activ(self.conv9(x))
         x = self.dp2(x)
-        x = self.conv10(x)
+        x = self.args.activ(self.conv10(x))
         x = self.conv11(x)
         
         return x
