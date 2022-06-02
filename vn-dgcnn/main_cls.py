@@ -40,8 +40,8 @@ def _init_():
 
 def train(args, io):
     if args.normal:
-        train_loader = ModelNetDataLoader(root='data', npoint=args.num_points, split='train', normal_channel=args.normal)
-        test_loader = ModelNetDataLoader(root='data', npoint=args.num_points, split='test', normal_channel=args.normal)
+        train_loader = ModelNetDataLoader(root='data/modelnet40_normal_resampled', npoint=args.num_points, split='train', normal_channel=args.normal)
+        test_loader = ModelNetDataLoader(root='data/modelnet40_normal_resampled', npoint=args.num_points, split='test', normal_channel=args.normal)
     else:
         train_loader = ModelNet40(partition='train', num_points=args.num_points)
         test_loader = ModelNet40(partition='test', num_points=args.num_points)
@@ -171,9 +171,8 @@ def train(args, io):
 
 def test(args, io):
     if args.normal:
-        test_loader = DataLoader(ModelNetDataLoader(root='data', npoint=args.num_points, split='test', normal_channel=args.normal),
+        test_loader = DataLoader(ModelNetDataLoader(root='data/modelnet40_normal_resampled', npoint=args.num_points, split='test', normal_channel=args.normal),
                                  batch_size=args.test_batch_size, shuffle=True, drop_last=False)
-
     else:
         test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points),
                                 batch_size=args.test_batch_size, shuffle=True, drop_last=False)
@@ -195,7 +194,10 @@ def test(args, io):
         model_path = args.model_path
     else:
         model_path = os.path.join('results/cls', args.exp_name, 'models/model.t7')
-    model.load_state_dict(torch.load(model_path))
+    state_dict = torch.load(model_path, map_location=device)
+    state_dict = { k: state_dict[k.replace('.instance', '')] for k in model.state_dict().keys() }
+    model.load_state_dict(state_dict)
+    # model.load_state_dict(torch.load(model_path))
     model = model.eval()
     test_acc = 0.0
     count = 0.0

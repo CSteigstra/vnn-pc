@@ -308,8 +308,8 @@ class EQCNN_cls(nn.Module):
         super(EQCNN_cls, self).__init__()
         self.args = args
         self.k = args.k
-        
-        self.conv1 = VNgetLinearActiv(2, 64//3, fun=args.activ)
+
+        self.conv1 = VNgetLinearActiv(4 if args.normal else 2, 64//3, fun=args.activ)
         self.conv2 = VNgetLinearActiv(64//3*2, 64//3, fun=args.activ)
         self.conv3 = VNgetLinearActiv(64//3*2, 128//3, fun=args.activ)
         self.conv4 = VNgetLinearActiv(128//3*2, 256//3, fun=args.activ)
