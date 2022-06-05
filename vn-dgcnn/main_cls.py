@@ -46,8 +46,8 @@ def train(args, io):
         train_loader = ModelNet40(partition='train', num_points=args.num_points)
         test_loader = ModelNet40(partition='test', num_points=args.num_points)
     
-    train_loader = DataLoader(train_loader, num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(test_loader, num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    train_loader = DataLoader(train_loader, num_workers=3, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(test_loader, num_workers=3, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 

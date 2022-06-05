@@ -2,10 +2,10 @@
 
 #SBATCH --partition=gpu_titanrtx_shared_course
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=dgcnn_exp2
+#SBATCH --job-name=dgcnn_norm
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=3
-#SBATCH --time=40:05:00
+#SBATCH --time=40:15:00
 #SBATCH --mem=32000M
 #SBATCH --output=slurm_output_%A.out
 
@@ -20,7 +20,7 @@ cd $HOME/vnn-pc/vn-dgcnn
 source activate dl2
 # Run your code
 
-srun python main_cls.py --exp_name=vn_dgcnn_lrelu_normal --model eqcnn --rot z --activ leaky_relu --normal
+srun python main_cls.py --exp_name=vn_dgcnn_norm_N --seed 69 --batch_size 32 --test_batch_size 16 --model eqcnn --rot z --activ leaky_relu --normal
 
-#srun python main_cls.py --exp_name=vn_dgcnn_lrelu_ours --model eqcnn --rot z --activ leaky_relu --eval
-#srun python main_cls.py --exp_name=vn_dgcnn_lrelu_ours --model eqcnn --rot so3 --activ leaky_relu --eval
+srun python main_cls.py --exp_name=vn_dgcnn_norm_N --seed 69 --batch_size 32 --test_batch_size 16 --model eqcnn --rot z --activ leaky_relu --normal --eval
+srun python main_cls.py --exp_name=vn_dgcnn_norm_N --seed 69 --batch_size 32 --test_batch_size 16 --model eqcnn --rot so3 --activ leaky_relu --normal --eval

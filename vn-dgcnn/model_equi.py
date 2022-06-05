@@ -31,10 +31,11 @@ def knn(x, k):
 def get_graph_feature(x, k=20, idx=None, x_coord=None):
     batch_size = x.size(0)
     num_points = x.size(3)
+    # point_dim = x.size(2)
     x = x.view(batch_size, -1, num_points)
     if idx is None:
         if x_coord is None: # dynamic knn graph
-            idx = knn(x, k=k)   # (batch_size, num_points, k)
+            idx = knn(x[:, :3], k=k)   # (batch_size, num_points, k)
         else:          # fixed knn graph with input point coordinates
             x_coord = x_coord.view(batch_size, -1, num_points)
             idx = knn(x_coord, k=k)
@@ -51,8 +52,8 @@ def get_graph_feature(x, k=20, idx=None, x_coord=None):
 
     x = x.transpose(2, 1).contiguous()   # (batch_size, num_points, num_dims)  -> (batch_size*num_points, num_dims) #   batch_size * num_points * k + range(0, batch_size*num_points)
     feature = x.view(batch_size*num_points, -1)[idx, :]
-    feature = feature.view(batch_size, num_points, k, num_dims, 3) 
-    x = x.view(batch_size, num_points, 1, num_dims, 3).repeat(1, 1, k, 1, 1)
+    feature = feature.view(batch_size, num_points, k, num_dims, -1) 
+    x = x.view(batch_size, num_points, 1, num_dims, -1).repeat(1, 1, k, 1, 1)
     
     feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 4, 1, 2).contiguous()
   
@@ -309,15 +310,17 @@ class EQCNN_cls(nn.Module):
         self.args = args
         self.k = args.k
 
-        self.conv1 = VNgetLinearActiv(4 if args.normal else 2, 64//3, fun=args.activ)
-        self.conv2 = VNgetLinearActiv(64//3*2, 64//3, fun=args.activ)
-        self.conv3 = VNgetLinearActiv(64//3*2, 128//3, fun=args.activ)
-        self.conv4 = VNgetLinearActiv(128//3*2, 256//3, fun=args.activ)
+        sc = 3 if args.normal else 3
 
-        self.conv5 = VNgetLinearActiv(256//3+128//3+64//3*2, 1024//3, dim=4, share_nonlinearity=True, fun=args.activ)
+        self.conv1 = VNgetLinearActiv(4 if args.normal else 2, 64//sc, fun=args.activ)
+        self.conv2 = VNgetLinearActiv(64//sc*2, 64//sc, fun=args.activ)
+        self.conv3 = VNgetLinearActiv(64//sc*2, 128//sc, fun=args.activ)
+        self.conv4 = VNgetLinearActiv(128//sc*2, 256//sc, fun=args.activ)
+
+        self.conv5 = VNgetLinearActiv(256//sc+128//sc+64//sc*2, 1024//sc, dim=4, share_nonlinearity=True, fun=args.activ)
         
-        self.std_feature = VNStdFeature(1024//3*2, dim=4, normalize_frame=False, fun=args.activ)
-        self.linear1 = nn.Linear((1024//3)*12, 512)
+        self.std_feature = VNStdFeature(1024//sc*2, dim=4, normalize_frame=False, fun=args.activ)
+        self.linear1 = nn.Linear((1024//sc)*12, 512)
         
         self.bn1 = nn.BatchNorm1d(512)
         self.dp1 = nn.Dropout(p=0.5)
@@ -327,10 +330,10 @@ class EQCNN_cls(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
         
         if args.pooling == 'max':
-            self.pool1 = VNMaxPool(64//3)
-            self.pool2 = VNMaxPool(64//3)
-            self.pool3 = VNMaxPool(128//3)
-            self.pool4 = VNMaxPool(256//3)
+            self.pool1 = VNMaxPool(64//sc)
+            self.pool2 = VNMaxPool(64//sc)
+            self.pool3 = VNMaxPool(128//sc)
+            self.pool4 = VNMaxPool(256//sc)
         elif args.pooling == 'mean':
             self.pool1 = mean_pool
             self.pool2 = mean_pool
@@ -389,24 +392,26 @@ class EQCNN_partseg(nn.Module):
         self.bn8 = nn.BatchNorm1d(256)
         self.bn9 = nn.BatchNorm1d(256)
         self.bn10 = nn.BatchNorm1d(128)
+
+        sc = 3 if args.normal else 3
         
-        self.conv1 = VNgetLinearActiv(2, 64//3, fun=args.activ)
-        self.conv2 = VNgetLinearActiv(64//3, 64//3, fun=args.activ)
-        self.conv3 = VNgetLinearActiv(64//3*2, 64//3, fun=args.activ)
-        self.conv4 = VNgetLinearActiv(64//3, 64//3, fun=args.activ)
-        self.conv5 = VNgetLinearActiv(64//3*2, 64//3, fun=args.activ)
+        self.conv1 = VNgetLinearActiv(4 if args.normal else 2, 64//sc, fun=args.activ)
+        self.conv2 = VNgetLinearActiv(64//sc, 64//sc, fun=args.activ)
+        self.conv3 = VNgetLinearActiv(64//sc*2, 64//sc, fun=args.activ)
+        self.conv4 = VNgetLinearActiv(64//sc, 64//sc, fun=args.activ)
+        self.conv5 = VNgetLinearActiv(64//sc*2, 64//sc, fun=args.activ)
         
         if args.pooling == 'max':
-            self.pool1 = VNMaxPool(64//3)
-            self.pool2 = VNMaxPool(64//3)
-            self.pool3 = VNMaxPool(64//3)
+            self.pool1 = VNMaxPool(64//sc)
+            self.pool2 = VNMaxPool(64//sc)
+            self.pool3 = VNMaxPool(64//sc)
         elif args.pooling == 'mean':
             self.pool1 = mean_pool
             self.pool2 = mean_pool
             self.pool3 = mean_pool
         
-        self.conv6 = VNgetLinearActiv(64//3*3, 1024//3, dim=4, share_nonlinearity=True, fun=args.activ)
-        self.std_feature = VNStdFeature(1024//3*2, dim=4, normalize_frame=False, fun=args.activ)
+        self.conv6 = VNgetLinearActiv(64//sc*3, 1024//sc, dim=4, share_nonlinearity=True, fun=args.activ)
+        self.std_feature = VNStdFeature(1024//sc*2, dim=4, normalize_frame=False, fun=args.activ)
         self.conv8 = nn.Sequential(nn.Conv1d(2299, 256, kernel_size=1, bias=False),
                                self.bn8)
         
