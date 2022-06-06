@@ -1,44 +1,45 @@
-# VN-DGCNN Classification & Segmentation
+# Vector Neurons++: Extending Neural Dimensionality and Generalizing Activation Functions for Vector Neuron Networks
 
-This repository is the VN-DGCNN model in the paper
-[Vector Neurons: A General Framework for SO(3)-Equivariant Networks](https://arxiv.org/pdf/2104.12229.pdf) with all the original training setups in [DGCNN](https://github.com/WangYueFt/dgcnn/). A merged version with VN-PointNet can be found [here](https://github.com/FlyingGiraffe/vnn/).
+This code base is forked from VN-PointNet <a href="https://github.com/FlyingGiraffe/vnn-pc/" target="_blank">Deng et al.</a>.
+We introduce the addition of arbitrary activation and inclusion of normals in the VN-layers, specifically for PointNet.
+For DGCNN we refer to https://github.com/CSteigstra/vnn-pc which is based on its correct implementation from https://github.com/FlyingGiraffe/vnn-pc .
 
-[[Project]](https://cs.stanford.edu/~congyue/vnn/) [[Paper]](https://arxiv.org/pdf/2104.12229.pdf)
+## Overview
+`vnn++` is the author's implementation of Vector Neuron Networks with PointNet and DGCNN backbones. The current version only supports PointNet for Modelnet40 classification.
 
-## Preparation
+## Data Preparation
 
-The code structure follows [this implementation](https://github.com/AnTao97/dgcnn.pytorch/) of DGCNN. Please follow their instructions to prepare the data and install the dependencies.
 
-[Pytorch3D](https://pytorch3d.readthedocs.io/en/latest/) is needed to generate random rotations.
++ Classification normals: Download [ModelNet40](https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip) and save in `data/modelnet40_normal_resampled/`.
 
 ## Usage
 
 ### Classification on ModelNet40
-To train the network, run
+Training
 ```
-python main_cls.py --exp_name=dgcnn_vnn --model=eqcnn --rot=ROTATION
+# Author's (Deng et al.) LeakyReLU
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z --normal
+# Ours
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z  --activ leaky_relu
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z  --activ leaky_relu --normal
 ```
-with `ROTATION` be `aligned`, `z`, or `so3`. To evaluate the trained network, run
+
+Evaluation
 ```
-python main_cls.py --exp_name=dgcnn_vnn --model=eqcnn --rot=ROTATION --eval
-```
-To test the pretrained network, run
-```
-python main_cls.py --exp_name=dgcnn_vnn --model=eqcnn --rot=ROTATION --eval --model_path pretrained/model.cls.vn_dgcnn.z.t7
+# Author's (Deng et al.) LeakyReLU
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3 --normal
+# Ours
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3 --activ leaky_relu
+python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3 --activ leaky_relu --normal
 ```
 
 ## Citation
-Please cite this paper if you want to use it in your work,
-
-    @article{deng2021vn,
-      title={Vector Neurons: a general framework for SO(3)-equivariant networks},
-      author={Deng, Congyue and Litany, Or and Duan, Yueqi and Poulenard, Adrien and Tagliasacchi, Andrea and Guibas, Leonidas},
-      journal={arXiv preprint arXiv:2104.12229},
-      year={2021}
-    } 
+In the works. Refer to our github for now. ^.^
 
 ## License
 MIT License
 
 ## Acknowledgement
-The structure of this codebase is borrowed from [DGCNN](https://github.com/WangYueFt/dgcnn/) as well as [this implementation](https://github.com/AnTao97/dgcnn.pytorch/).
+The structure of this codebase is borrowed from this pytorch implementataion of [PointNet/PointNet++](https://github.com/yanx27/Pointnet_Pointnet2_pytorch) and [DGCNN](https://github.com/WangYueFt/dgcnn) as well as [this implementation](https://github.com/AnTao97/dgcnn.pytorch).
