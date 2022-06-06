@@ -18,18 +18,18 @@ For DGCNN we refer to https://github.com/CSteigstra/vnn-pc which is based on its
 Training
 ```
 # Author's (Deng et al.) LeakyReLU
-python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z
-python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z --normal
+python main_cls.py --exp_name SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z
+python main_cls.py --exp_name SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z --normal
 # Ours
-python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z  --activ leaky_relu
-python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z  --activ leaky_relu --normal
+python main_cls.py --exp_name SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z  --activ leaky_relu
+python main_cls.py --exp_name SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot z  --activ leaky_relu --normal
 ```
 
 Evaluation
 ```
 # Author's (Deng et al.) LeakyReLU
-python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3
-python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3 --normal
+python main_cls.py --exp_name SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3
+python main_cls.py --exp_name SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3 --normal
 # Ours
 python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3 --activ leaky_relu
 python main_cls.py --exp_name=SAVE_DIR --batch_size 12 --test_batch_size 8 --model eqcnn --rot so3 --activ leaky_relu --normal
